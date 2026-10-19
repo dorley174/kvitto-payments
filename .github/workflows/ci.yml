@@ -1,0 +1,41 @@
+name: Проверки
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    env:
+      DATABASE_URL: sqlite:///./data/ci.db
+      WEBHOOK_SECRET: ci-only-secret-for-isolated-tests
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Установить Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Установить зависимости
+        run: python -m pip install --require-hashes -r requirements-dev.txt
+      - name: Проверить код
+        run: ruff check .
+      - name: Проверить форматирование
+        run: ruff format --check .
+      - name: Создать чистую базу и проверить миграции
+        run: |
+          alembic upgrade head
+          alembic check
+      - name: Запустить тесты
+        run: pytest
